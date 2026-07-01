@@ -2,17 +2,44 @@ const SPREADSHEET_ID = '1gHYdY8SzuUWk2lz0vYK1PnPBgMzxWe6WcXkSfhm5Odc';
 const FOLDER_KK_ID = '1RoIsMqYobFgQYEKu7Ay4cDK7v7MqoOWX';
 const FOLDER_IJAZAH_ID = '1i2W66OG5WPZTrJe2KttGN2iSV2ZmIUW1';
 
-function doGet() {
-  return HtmlService.createTemplateFromFile('Index')
-      .evaluate()
-      .setTitle('SPMB MA Al Istiqomah')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+// Tambahan fungsi doPost sebagai pintu masuk API dari Netlify
+function doPost(e) {
+  let result;
+  try {
+    const requestData = JSON.parse(e.postData.contents);
+    const action = requestData.action;
+
+    if (action === 'login') {
+      result = loginUser(requestData.username, requestData.password);
+    } else if (action === 'submit') {
+      result = submitPendaftaran(
+        requestData.formData, 
+        requestData.fileKkBase64, 
+        requestData.fileKkName, 
+        requestData.fileIjazahBase64, 
+        requestData.fileIjazahName
+      );
+    } else if (action === 'getAll') {
+      result = getAllPendaftar();
+    } else if (action === 'update') {
+      result = updatePendaftaran(requestData.formData);
+    } else if (action === 'printF5') {
+      result = { status: 'success', html: generatePrintF5(requestData.nisn) };
+    } else if (action === 'getDownloadUrl') {
+      result = { status: 'success', url: getDownloadUrl() };
+    } else {
+      result = { status: 'error', message: 'Aksi tidak dikenal.' };
+    }
+  } catch (error) {
+    result = { status: 'error', message: error.toString() };
+  }
+
+  // Mengembalikan respons dalam bentuk JSON (Wajib untuk integrasi lintas platform)
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
-}
+// Menghapus fungsi doGet lama karena HTML sekarang di-host di Netlify
 
 function getSpreadsheetData(sheetName) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -144,10 +171,8 @@ function updatePendaftaran(formData) {
   }
 }
 
-/**
- * Menghasilkan Tampilan HTML Cetak Formulir F5 Resmi Berdasarkan NISN
- */
 function generatePrintF5(nisn) {
+  // Perbaikan typo pembungkusan variabel let pada kode asli
   try {
     const pendaftarData = getSpreadsheetData('PENDAFTAR');
     if (pendaftarData.length <= 1) return "Data pendaftar kosong.";
@@ -174,8 +199,7 @@ function generatePrintF5(nisn) {
       d[header] = val === undefined || val === null ? '' : val.toString().trim();
     });
     
-    // Logika Kondisional Pengecekan Eksistensi Data Wali Murid
-    lethasWali = d['Nama Wali'] && d['Nama Wali'] !== '' && d['Nama Wali'] !== d['Nama Ayah'] && d['Nama Wali'] !== d['Nama Ibu'];
+    let hasWali = d['Nama Wali'] && d['Nama Wali'] !== '' && d['Nama Wali'] !== d['Nama Ayah'] && d['Nama Wali'] !== d['Nama Ibu'];
     let waliHtmlSection = '';
     
     if (hasWali) {
@@ -192,7 +216,6 @@ function generatePrintF5(nisn) {
       `;
     }
 
-    // Kompilasi Dokumen Cetak Standar Kertas F5 (Sekitar 215mm x 330mm)
     let htmlOutput = `
       <!DOCTYPE html>
       <html>
