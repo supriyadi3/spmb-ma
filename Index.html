@@ -409,6 +409,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
+  // WAJIB: Ganti dengan URL Web App Google Script Anda yang dideploy sebagai "Anyone"
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz_XXXXXXXXXXXXXX/exec";
+
   let listPendaftarAdmin = [];
   let currentSiswaData = {};
 
@@ -423,6 +426,22 @@
     reader.onload = () => resolve(reader.result);
     reader.onerror = error => reject(error);
   });
+
+  // Fungsi helper global untuk memanggil backend Apps Script menggunakan Fetch API
+  function callBackend(payload, successCallback) {
+    fetch(WEB_APP_URL, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => successCallback(data))
+    .catch(error => {
+      console.error("Error:", error);
+      alert("Terjadi kesalahan koneksi sistem eksternal.");
+    });
+  }
 
   async function handlePendaftaran(e) {
     e.preventDefault();
@@ -439,11 +458,18 @@
     if(kkInput) { fileKkBase64 = await getBase64(kkInput); fileKkName = kkInput.name; }
     if(ijzInput) { fileIjzBase64 = await getBase64(ijzInput); fileIjzName = ijzInput.name; }
 
-    google.script.run.withSuccessHandler(res => {
+    callBackend({
+      action: "submit",
+      formData: formDataObj,
+      fileKkBase64: fileKkBase64,
+      fileKkName: fileKkName,
+      fileIjazahBase64: fileIjzBase64,
+      fileIjazahName: fileIjzName
+    }, (res) => {
       alert(res.message);
       btn.disabled = false; btn.innerText = "Kirim Pendaftaran";
       if(res.status === 'success') { form.reset(); showSection('login'); }
-    }).submitPendaftaran(formDataObj, fileKkBase64, fileKkName, fileIjzBase64, fileIjzName);
+    });
   }
 
   function handleLogin(e) {
@@ -453,7 +479,11 @@
     const user = document.getElementById('logUser').value;
     const pass = document.getElementById('logPass').value;
 
-    google.script.run.withSuccessHandler(res => {
+    callBackend({
+      action: "login",
+      username: user,
+      password: pass
+    }, (res) => {
       btn.disabled = false;
       if(res.status === 'success') {
         document.getElementById('loginMenuLink').classList.add('d-none');
@@ -467,7 +497,7 @@
           loadSiswaDashboard(res.data);
         }
       } else { alert(res.message); }
-    }).loginUser(user, pass);
+    });
   }
 
   function logout() {
@@ -479,7 +509,8 @@
   function loadAdminDashboard() {
     const tbody = document.getElementById('tablePendaftarBody');
     tbody.innerHTML = '<tr><td colspan="6" class="text-center p-3">Memuat...</td></tr>';
-    google.script.run.withSuccessHandler(data => {
+    
+    callBackend({ action: "getAll" }, (data) => {
       listPendaftarAdmin = data;
       tbody.innerHTML = '';
       if(!data || data.length === 0){
@@ -504,7 +535,7 @@
       document.getElementById('statMts').innerText = mts;
       document.getElementById('statNegeri').innerText = negeri;
       document.getElementById('statSwasta').innerText = swasta;
-    }).getAllPendaftar();
+    });
   }
 
   function loadSiswaDashboard(data) {
@@ -530,17 +561,21 @@
     const form = document.getElementById('formEditSiswa');
     const updateData = {};
     new FormData(form).forEach((value, key) => { updateData[key] = value; });
-    google.script.run.withSuccessHandler(res => {
+    
+    callBackend({
+      action: "update",
+      formData: updateData
+    }, (res) => {
       btn.disabled = false; alert(res.message);
       if(res.status === 'success') { currentSiswaData = {...currentSiswaData, ...updateData}; loadSiswaDashboard(currentSiswaData); }
-    }).updatePendaftaran(updateData);
+    });
   }
 
   function downloadExcelDirect() {
     const ws = XLSX.utils.json_to_sheet(listPendaftarAdmin);
     const wb = XLSX.utils.book_new();
-    XXLSX.utils.book_append_sheet(wb, ws, "Pendaftar");
-    XXLSX.writeFile(wb, "Data_Pendaftar_MA_Al_Istiqomah.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Pendaftar");
+    XLSX.writeFile(wb, "Data_Pendaftar_MA_Al_Istiqomah.xlsx");
   }
 
   function printFormulirAdminByIndex(index) { printFormulirAction(listPendaftarAdmin[index]); }
@@ -559,7 +594,6 @@
 
     const createRow = (k, v) => `<tr><td style="padding:2px 0; width:45%; font-weight:bold; border-bottom:1px dashed #ddd;">${k}</td><td style="width:3%;">:</td><td style="border-bottom:1px dashed #ddd;">${v || '-'}</td></tr>`;
 
-    // Ambil field spesifik secara urut (termasuk Alamat Lengkap setelah Cita-cita)
     const fieldsA = ['Nama Lengkap','Tempat Lahir','Tanggal Lahir','NIK','NISN','Pernah TK','Pernah PAUD','Hobi','Cita-cita','Alamat Lengkap'];
     fieldsA.forEach(key => {
       if (data[key] !== undefined) ga.innerHTML += createRow(key, data[key]);
@@ -575,29 +609,23 @@
       if (data[key] !== undefined) gc.innerHTML += createRow(key, data[key]);
     });
 
-    // Validasi ketat untuk Grup D Wali Murid (Hanya ambil field spesifik Wali)
     const fieldsD = ['Nama Wali','NIK Wali','Hubungan Keluarga','Pendidikan Wali','Pekerjaan Wali','Penghasilan Wali'];
     let hasWaliData = false;
 
     fieldsD.forEach(key => {
-      if (data[key] && data[key].toString().trim() !== '' && data[key].toString().trim() !== '-') {
+      if (data[key] && data[key].toString().trim() !== '') {
+        gd.innerHTML += createRow(key, data[key]);
         hasWaliData = true;
       }
     });
 
-    if (hasWaliData) {
-      fieldsD.forEach(key => {
-        gd.innerHTML += createRow(key, data[key]);
-      });
-      containerD.style.display = 'block';
+    if(hasWaliData) {
+      containerD.style.display = "block";
     } else {
-      containerD.style.display = 'none';
+      containerD.style.display = "none";
     }
 
-    const printArea = document.getElementById('printWrapper');
-    printArea.style.display = 'block';
     window.print();
-    printArea.style.display = 'none';
   }
 </script>
 </body>
