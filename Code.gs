@@ -37,10 +37,21 @@ function doPost(e) {
       result = { status: 'error', message: 'Aksi tidak dikenal.' };
     }
   } catch (error) {
-    result = { status: 'error', message: 'Terjadi kesalahan sistem: ' + error.toString() };
+    result = { status: 'error', message: 'Terjadi kesalahan sistem backend: ' + error.toString() };
   }
 
   return buildJsonResponse(result);
+}
+
+/**
+ * Mendukung metode OPTIONS (Preflight Request CORS dari Browser)
+ */
+function doOptions(e) {
+  return ContentService.createTextOutput("")
+    .setMimeType(ContentService.MimeType.TEXT)
+    .appendHeader("Access-Control-Allow-Origin", "*")
+    .appendHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+    .appendHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
 /**
@@ -130,7 +141,7 @@ function submitPendaftaran(formData, fileKkBase64, fileKkName, fileIjazahBase64,
     
     // Proses upload KK jika ada
     let linkKk = '';
-    if (fileKkBase64 && fileKkName) {
+    if (fileKkBase64 && fileKkName && fileKkBase64.includes(",")) {
       const folderKk = DriveApp.getFolderById(FOLDER_KK_ID);
       const decodedKk = Utilities.base64Decode(fileKkBase64.split(",")[1]);
       const mimeKk = fileKkBase64.split(",")[0].split(";")[0].split(":")[1];
@@ -142,7 +153,7 @@ function submitPendaftaran(formData, fileKkBase64, fileKkName, fileIjazahBase64,
     
     // Proses upload Ijazah jika ada
     let linkIjazah = '';
-    if (fileIjazahBase64 && fileIjazahName) {
+    if (fileIjazahBase64 && fileIjazahName && fileIjazahBase64.includes(",")) {
       const folderIjazah = DriveApp.getFolderById(FOLDER_IJAZAH_ID);
       const decodedIjz = Utilities.base64Decode(fileIjazahBase64.split(",")[1]);
       const mimeIjz = fileIjazahBase64.split(",")[0].split(";")[0].split(":")[1];
@@ -215,7 +226,7 @@ function updatePendaftaran(formData) {
 
     if (rowIndex !== -1) {
       headers.forEach((header, index) => {
-        // Jangan timpa link berkas dengan string kosong saat siswa hanya meng-update teks biodata
+        // Jangan timpa link berkas penting atau kolom tanggal dengan string kosong saat update parsial teks
         if (formData[header] !== undefined && header !== 'Link File KK' && header !== 'Link File Ijazah' && header !== 'Tanggal Daftar') {
           sheet.getRange(rowIndex, index + 1).setValue(formData[header]);
         }
@@ -258,7 +269,6 @@ function generatePrintF5(nisn) {
       d[header] = val === undefined || val === null ? '' : val.toString().trim();
     });
     
-    // Sinkronisasi pemetaan key alternatif untuk mencegah error pembacaan properti di HTML template
     let namaSekolah = d['Nama Sekolah Asal'] || d['Nama Sekolah'] || '-';
     let jenjangSekolah = d['Jenjang Asal'] || d['Jenjang Sekolah Asal'] || '-';
     let statusSekolah = d['Status Asal'] || d['Status Sekolah Asal'] || '-';
@@ -402,9 +412,12 @@ function getDownloadUrl() {
 }
 
 /**
- * Fungsi Pembantu Standarisasi Response JSON demi Keamanan CORS Netlify
+ * Fungsi Pembantu Standarisasi Response JSON dengan Header Pengaman CORS
  */
 function buildJsonResponse(objekData) {
   return ContentService.createTextOutput(JSON.stringify(objekData))
-    .setMimeType(ContentService.MimeType.JSON);
+    .setMimeType(ContentService.MimeType.JSON)
+    .appendHeader("Access-Control-Allow-Origin", "*")
+    .appendHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+    .appendHeader("Access-Control-Allow-Headers", "Content-Type");
 }
