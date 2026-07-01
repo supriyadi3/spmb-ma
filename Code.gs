@@ -2,10 +2,16 @@ const SPREADSHEET_ID = '1gHYdY8SzuUWk2lz0vYK1PnPBgMzxWe6WcXkSfhm5Odc';
 const FOLDER_KK_ID = '1RoIsMqYobFgQYEKu7Ay4cDK7v7MqoOWX';
 const FOLDER_IJAZAH_ID = '1i2W66OG5WPZTrJe2KttGN2iSV2ZmIUW1';
 
-// Tambahan fungsi doPost sebagai pintu masuk API dari Netlify
+/**
+ * Pintu masuk utama API dari Netlify (Metode POST)
+ */
 function doPost(e) {
   let result;
   try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return buildJsonResponse({ status: 'error', message: 'Tidak ada payload data yang diterima.' });
+    }
+
     const requestData = JSON.parse(e.postData.contents);
     const action = requestData.action;
 
@@ -31,79 +37,116 @@ function doPost(e) {
       result = { status: 'error', message: 'Aksi tidak dikenal.' };
     }
   } catch (error) {
-    result = { status: 'error', message: error.toString() };
+    result = { status: 'error', message: 'Terjadi kesalahan sistem: ' + error.toString() };
   }
 
-  // Mengembalikan respons dalam bentuk JSON (Wajib untuk integrasi lintas platform)
-  return ContentService.createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
+  return buildJsonResponse(result);
 }
 
-// Menghapus fungsi doGet lama karena HTML sekarang di-host di Netlify
-
+/**
+ * Fungsi Pembantu mengambil data spreadsheet
+ */
 function getSpreadsheetData(sheetName) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return [];
-  return sheet.getDataRange().getValues();
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return [];
+    return sheet.getDataRange().getValues();
+  } catch (err) {
+    return [];
+  }
 }
 
+/**
+ * Autentikasi Login (Admin via Sheet 'USER', Siswa via Sheet 'PENDAFTAR')
+ */
 function loginUser(username, password) {
+  if (!username || !password) {
+    return { status: 'error', message: 'Username dan Password wajib diisi!' };
+  }
+
+  const uPlain = username.toString().trim();
+  const pPlain = password.toString().trim();
+
+  // 1. Cek Login Admin
   const userData = getSpreadsheetData('USER');
   for (let i = 1; i < userData.length; i++) {
-    if (userData[i][0] && userData[i][0].toString().trim() === username.toString().trim() && 
-        userData[i][1] && userData[i][1].toString().trim() === password.toString().trim()) {
+    if (userData[i][0] && userData[i][0].toString().trim() === uPlain && 
+        userData[i][1] && userData[i][1].toString().trim() === pPlain) {
       return { status: 'success', role: 'admin', name: 'Administrator' };
     }
   }
   
+  // 2. Cek Login Siswa (Username & Password adalah NISN)
   const pendaftarData = getSpreadsheetData('PENDAFTAR');
   if (pendaftarData.length > 0) {
     const headers = pendaftarData[0].map(h => h.toString().trim());
     const nisnIdx = headers.indexOf('NISN');
     const namaIdx = headers.indexOf('Nama Lengkap');
     
-    for (let i = 1; i < pendaftarData.length; i++) {
-      if (pendaftarData[i][nisnIdx] && pendaftarData[i][nisnIdx].toString().trim() === username.toString().trim() && 
-          username.toString().trim() === password.toString().trim()) {
-        
-        let studentData = {};
-        headers.forEach((header, index) => {
-          let val = pendaftarData[i][index];
-          if (val instanceof Date) {
-            val = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
-          }
-          studentData[header] = val === undefined || val === null ? '' : val.toString();
-        });
-        return { status: 'success', role: 'siswa', name: pendaftarData[i][namaIdx], data: studentData };
+    if (nisnIdx !== -1) {
+      for (let i = 1; i < pendaftarData.length; i++) {
+        if (pendaftarData[i][nisnIdx] && pendaftarData[i][nisnIdx].toString().trim() === uPlain && uPlain === pPlain) {
+          let studentData = {};
+          headers.forEach((header, index) => {
+            let val = pendaftarData[i][index];
+            if (val instanceof Date) {
+              val = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
+            }
+            studentData[header] = val === undefined || val === null ? '' : val.toString();
+          });
+          return { status: 'success', role: 'siswa', name: pendaftarData[i][namaIdx] || 'Siswa', data: studentData };
+        }
       }
     }
   }
-  return { status: 'error', message: 'Username atau Password salah!' };
+  return { status: 'error', message: 'Username atau Password (NISN) salah!' };
 }
 
+/**
+ * Menyimpan data pendaftaran baru dan upload berkas dokumen ke Google Drive
+ */
 function submitPendaftaran(formData, fileKkBase64, fileKkName, fileIjazahBase64, fileIjazahName) {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName('PENDAFTAR');
-    const headers = sheet.getDataRange().getValues()[0].map(h => h.toString().trim());
+    const dataRange = sheet.getDataRange().getValues();
+    const headers = dataRange[0].map(h => h.toString().trim());
     
+    const nisnInput = formData['NISN'] ? formData['NISN'].toString().trim() : '';
+    if (!nisnInput) {
+      return { status: 'error', message: 'Gagal, NISN wajib diisi.' };
+    }
+
+    // Proteksi Duplikasi: Cek apakah NISN sudah terdaftar
+    const nisnIdx = headers.indexOf('NISN');
+    if (nisnIdx !== -1) {
+      for (let i = 1; i < dataRange.length; i++) {
+        if (dataRange[i][nisnIdx] && dataRange[i][nisnIdx].toString().trim() === nisnInput) {
+          return { status: 'error', message: 'Gagal! Siswa dengan NISN ' + nisnInput + ' sudah terdaftar.' };
+        }
+      }
+    }
+    
+    // Proses upload KK jika ada
     let linkKk = '';
-    let linkIjazah = '';
-    
-    if (fileKkBase64) {
+    if (fileKkBase64 && fileKkName) {
       const folderKk = DriveApp.getFolderById(FOLDER_KK_ID);
       const decodedKk = Utilities.base64Decode(fileKkBase64.split(",")[1]);
-      const blobKk = Utilities.newBlob(decodedKk, fileKkBase64.split(",")[0].split(";")[0].split(":")[1], fileKkName);
+      const mimeKk = fileKkBase64.split(",")[0].split(";")[0].split(":")[1];
+      const blobKk = Utilities.newBlob(decodedKk, mimeKk, "KK_" + nisnInput + "_" + fileKkName);
       const fileKk = folderKk.createFile(blobKk);
       fileKk.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       linkKk = fileKk.getUrl();
     }
     
-    if (fileIjazahBase64) {
+    // Proses upload Ijazah jika ada
+    let linkIjazah = '';
+    if (fileIjazahBase64 && fileIjazahName) {
       const folderIjazah = DriveApp.getFolderById(FOLDER_IJAZAH_ID);
       const decodedIjz = Utilities.base64Decode(fileIjazahBase64.split(",")[1]);
-      const blobIjz = Utilities.newBlob(decodedIjz, fileIjazahBase64.split(",")[0].split(";")[0].split(":")[1], fileIjazahName);
+      const mimeIjz = fileIjazahBase64.split(",")[0].split(";")[0].split(":")[1];
+      const blobIjz = Utilities.newBlob(decodedIjz, mimeIjz, "IJZ_" + nisnInput + "_" + fileIjazahName);
       const fileIjz = folderIjazah.createFile(blobIjz);
       fileIjz.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       linkIjazah = fileIjz.getUrl();
@@ -111,19 +154,23 @@ function submitPendaftaran(formData, fileKkBase64, fileKkName, fileIjazahBase64,
     
     formData['Link File KK'] = linkKk;
     formData['Link File Ijazah'] = linkIjazah;
+    formData['Tanggal Daftar'] = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
     
     let rowValues = [];
     headers.forEach(header => {
-      rowValues.push(formData[header] || '');
+      rowValues.push(formData[header] !== undefined && formData[header] !== null ? formData[header] : '');
     });
     
     sheet.appendRow(rowValues);
-    return { status: 'success', message: 'Pendaftaran berhasil disimpan!' };
+    return { status: 'success', message: 'Pendaftaran berhasil disimpan! Silakan login menggunakan NISN Anda.' };
   } catch (error) {
-    return { status: 'error', message: error.toString() };
+    return { status: 'error', message: 'Gagal simpan pendaftaran: ' + error.toString() };
   }
 }
 
+/**
+ * Mengambil seluruh data pendaftar untuk Dashboard Admin
+ */
 function getAllPendaftar() {
   const data = getSpreadsheetData('PENDAFTAR');
   if (data.length <= 1) return [];
@@ -143,6 +190,9 @@ function getAllPendaftar() {
   return result;
 }
 
+/**
+ * Memperbarui data pendaftar dari formulir edit siswa mandiri / admin
+ */
 function updatePendaftaran(formData) {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -150,6 +200,11 @@ function updatePendaftaran(formData) {
     const data = sheet.getDataRange().getValues();
     const headers = data[0].map(h => h.toString().trim());
     const nisnIdx = headers.indexOf('NISN');
+    
+    if (nisnIdx === -1 || !formData['NISN']) {
+      return { status: 'error', message: 'Parameter NISN tidak valid.' };
+    }
+
     let rowIndex = -1;
     for (let i = 1; i < data.length; i++) {
       if (data[i][nisnIdx] && data[i][nisnIdx].toString().trim() === formData['NISN'].toString().trim()) {
@@ -157,25 +212,29 @@ function updatePendaftaran(formData) {
         break;
       }
     }
+
     if (rowIndex !== -1) {
       headers.forEach((header, index) => {
-        if (formData[header] !== undefined && header !== 'Link File KK' && header !== 'Link File Ijazah') {
+        // Jangan timpa link berkas dengan string kosong saat siswa hanya meng-update teks biodata
+        if (formData[header] !== undefined && header !== 'Link File KK' && header !== 'Link File Ijazah' && header !== 'Tanggal Daftar') {
           sheet.getRange(rowIndex, index + 1).setValue(formData[header]);
         }
       });
       return { status: 'success', message: 'Biodata berhasil diperbarui!' };
     }
-    return { status: 'error', message: 'Data tidak ditemukan.' };
+    return { status: 'error', message: 'Data tidak ditemukan di database.' };
   } catch (error) {
-    return { status: 'error', message: error.toString() };
+    return { status: 'error', message: 'Gagal update data: ' + error.toString() };
   }
 }
 
+/**
+ * Membuat dokumen cetak Formulir F5 berbasis HTML
+ */
 function generatePrintF5(nisn) {
-  // Perbaikan typo pembungkusan variabel let pada kode asli
   try {
     const pendaftarData = getSpreadsheetData('PENDAFTAR');
-    if (pendaftarData.length <= 1) return "Data pendaftar kosong.";
+    if (pendaftarData.length <= 1) return "<h3>Error: Data pendaftar kosong.</h3>";
     
     const headers = pendaftarData[0].map(h => h.toString().trim());
     const nisnIdx = headers.indexOf('NISN');
@@ -199,6 +258,13 @@ function generatePrintF5(nisn) {
       d[header] = val === undefined || val === null ? '' : val.toString().trim();
     });
     
+    // Sinkronisasi pemetaan key alternatif untuk mencegah error pembacaan properti di HTML template
+    let namaSekolah = d['Nama Sekolah Asal'] || d['Nama Sekolah'] || '-';
+    let jenjangSekolah = d['Jenjang Asal'] || d['Jenjang Sekolah Asal'] || '-';
+    let statusSekolah = d['Status Asal'] || d['Status Sekolah Asal'] || '-';
+    let npsnSekolah = d['NPSN Asal'] || d['NPSN Sekolah Asal'] || '-';
+    let alamatSekolah = d['Alamat Sekolah'] || d['Alamat Sekolah Asal'] || '-';
+
     let hasWali = d['Nama Wali'] && d['Nama Wali'] !== '' && d['Nama Wali'] !== d['Nama Ayah'] && d['Nama Wali'] !== d['Nama Ibu'];
     let waliHtmlSection = '';
     
@@ -206,9 +272,9 @@ function generatePrintF5(nisn) {
       waliHtmlSection = `
         <div class="section-title">D. DATA WALI MURID</div>
         <table>
-          <tr><td class="w-35">Nama Wali</td><td class="w-2">:</td><td>${d['Nama Wali'] || '-'}</td></tr>
+          <tr><td class="w-35">Nama Wali</td><td class="w-2">:</td><td>${d['Nama Wali']}</td></tr>
           <tr><td>NIK Wali</td><td>:</td><td>${d['NIK Wali'] || '-'}</td></tr>
-          <tr><td>Tempat, Tanggal Lahir</td><td>:</td><td>${d['Tempat Lahir Wali'] || '-'}, ${d['Tanggal Lahir Wali'] || '-'}</td></tr>
+          <tr><td>Hubungan Keluarga</td><td>:</td><td>${d['Hubungan Keluarga'] || '-'}</td></tr>
           <tr><td>Pendidikan Terakhir</td><td>:</td><td>${d['Pendidikan Wali'] || '-'}</td></tr>
           <tr><td>Pekerjaan Utama</td><td>:</td><td>${d['Pekerjaan Wali'] || '-'}</td></tr>
           <tr><td>Penghasilan Bulanan</td><td>:</td><td>${d['Penghasilan Wali'] || '-'}</td></tr>
@@ -216,7 +282,7 @@ function generatePrintF5(nisn) {
       `;
     }
 
-    let htmlOutput = `
+    return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -267,10 +333,10 @@ function generatePrintF5(nisn) {
         
         <div class="section-title">B. DATA SEKOLAH ASAL</div>
         <table>
-          <tr><td class="w-35">Nama Satuan Pendidikan Asal</td><td class="w-2">:</td><td>${d['Nama Sekolah Asal'] || '-'} (${d['Jenjang Sekolah Asal'] || '-'})</td></tr>
-          <tr><td>Status Kelembagaan Sekolah</td><td>:</td><td>${d['Status Sekolah Asal'] || '-'}</td></tr>
-          <tr><td>Nomor Pokok Sekolah Nasional (NPSN)</td><td>:</td><td>${d['NPSN Sekolah Asal'] || '-'}</td></tr>
-          <tr><td>Alamat Lokasi Instansi Sekolah</td><td>:</td><td>${d['Alamat Sekolah Asal'] || '-'}</td></tr>
+          <tr><td class="w-35">Nama Satuan Pendidikan Asal</td><td class="w-2">:</td><td>${namaSekolah} (${jenjangSekolah})</td></tr>
+          <tr><td>Status Kelembagaan Sekolah</td><td>:</td><td>${statusSekolah}</td></tr>
+          <tr><td>Nomor Pokok Sekolah Nasional (NPSN)</td><td>:</td><td>${npsnSekolah}</td></tr>
+          <tr><td>Alamat Lokasi Instansi Sekolah</td><td>:</td><td>${alamatSekolah}</td></tr>
         </table>
         
         <div class="section-title">C. DATA ORANG TUA</div>
@@ -326,12 +392,19 @@ function generatePrintF5(nisn) {
       </body>
       </html>
     `;
-    return htmlOutput;
   } catch(err) {
-    return " terjadi masalah internal: " + err.toString();
+    return "<h3>Terjadi masalah internal pembuatan F5: " + err.toString() + "</h3>";
   }
 }
 
 function getDownloadUrl() {
   return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID + "/export?format=xlsx";
+}
+
+/**
+ * Fungsi Pembantu Standarisasi Response JSON demi Keamanan CORS Netlify
+ */
+function buildJsonResponse(objekData) {
+  return ContentService.createTextOutput(JSON.stringify(objekData))
+    .setMimeType(ContentService.MimeType.JSON);
 }
