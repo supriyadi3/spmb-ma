@@ -57,6 +57,44 @@
       border-left: 4px solid var(--primary-color);
       background-color: #ffffff;
     }
+
+    /* KETENTUAN REAL KERTAS F5 (148mm x 210mm) */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printWrapper, #printWrapper * {
+        visibility: visible;
+      }
+      #printWrapper {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 148mm;
+        height: auto;
+        font-family: "Times New Roman", Times, serif;
+        font-size: 10pt;
+        color: #000;
+        line-height: 1.2;
+        background-color: #fff;
+      }
+      .print-group-header {
+        background-color: #e5eee9 !important;
+        font-weight: bold;
+        font-size: 10.5pt;
+        padding: 3px 5px;
+        margin-top: 8px;
+        border: 1px solid #aaa;
+        color: #1b4d3e;
+      }
+      @page {
+        size: 148mm 210mm;
+        margin: 6mm 8mm;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
   </style>
   <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
@@ -73,7 +111,7 @@
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto">
         <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('home')"><i class="bi bi-house-door"></i> Home</a></li>
-        <li class="nav-item"><a class="nav-link" href="#" id="registerMenuLink" onclick="showSection('daftar')"><i class="bi bi-person-plus"></i> Daftar</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('daftar')"><i class="bi bi-person-plus"></i> Daftar</a></li>
         <li class="nav-item"><a class="nav-link" href="#" id="loginMenuLink" onclick="showSection('login')"><i class="bi bi-box-arrow-in-right"></i> Login</a></li>
         <li class="nav-item"><a class="nav-link d-none" href="#" id="logoutLink" onclick="logout()"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
       </ul>
@@ -81,9 +119,8 @@
   </div>
 </nav>
 
-<div class="container mb-5">
+<div class="container mb-5 no-print">
   
-  <!-- HOME SECTION -->
   <div id="home" class="page-section active">
     <div class="hero-section rounded shadow mb-4">
       <h2 class="fw-bold">Selamat Datang di Portal SPMB Online</h2>
@@ -113,7 +150,7 @@
             <div class="badge bg-success p-2 me-3 fs-6">3</div>
             <div>
               <h6 class="fw-bold mb-1">Cetak Bukti Registrasi</h6>
-              <p class="text-muted small">Gunakan <b>NISN</b> Anda untuk login kembali guna melihat status data atau mencetak formulir fisik F5.</p>
+              <p class="text-muted small">Gunakan <b>NISN</b> Anda untuk login kembali guna melihat status kelolosan atau mencetak formulir fisik F5.</p>
             </div>
           </div>
         </div>
@@ -129,7 +166,6 @@
     </div>
   </div>
 
-  <!-- REGISTRATION SECTION -->
   <div id="daftar" class="page-section">
     <div class="card border-0 shadow-sm">
       <div class="card-header card-header-custom"><i class="bi bi-pencil-square"></i> Formulir Pendaftaran Lengkap</div>
@@ -219,7 +255,6 @@
     </div>
   </div>
 
-  <!-- LOGIN SECTION -->
   <div id="login" class="page-section">
     <div class="row justify-content-center">
       <div class="col-md-5">
@@ -244,7 +279,6 @@
     </div>
   </div>
 
-  <!-- ADMIN DASHBOARD -->
   <div id="dashAdmin" class="page-section">
     <div class="row mb-4">
       <div class="col-md-4 mb-2"><div class="card stat-card shadow-sm p-3"><small class="text-muted fw-bold">JUMLAH PENDAFTAR</small><h2 class="fw-bold text-success m-0" id="statTotal">0</h2></div></div>
@@ -275,7 +309,6 @@
     </div>
   </div>
 
-  <!-- SISWA DASHBOARD -->
   <div id="dashSiswa" class="page-section">
     <h3 class="fw-bold text-success mb-3" id="welcomeSiswa">Dashboard</h3>
     <div class="row">
@@ -284,7 +317,7 @@
           <i class="bi bi-person-badge text-success display-4"></i>
           <h5 class="fw-bold mt-2" id="siswaNamaBox">-</h5>
           <p class="text-muted small mb-3" id="siswaNisnBox">NISN: -</p>
-          <button class="btn btn-custom w-100 btn-sm" onclick="printFormulirAction()"><i class="bi bi-printer"></i> Cetak Formulir F5</button>
+          <button class="btn btn-custom w-100 btn-sm" onclick="printFormulirAction(currentSiswaData)"><i class="bi bi-printer"></i> Cetak Formulir F5</button>
         </div>
       </div>
       <div class="col-md-8">
@@ -311,7 +344,7 @@
                 <div class="col-md-6"><label>Nama Sekolah Asal</label><input type="text" class="form-control" name="Nama Sekolah Asal" id="edSekolah"></div>
                 <div class="col-md-6"><label>Nama Ayah</label><input type="text" class="form-control" name="Nama Ayah" id="edAyah"></div>
               </div>
-              
+               
               <h5 class="text-success border-bottom pb-2 mt-4 mb-3 fw-bold small">Perubahan Data Wali (Opsional)</h5>
               <div class="row g-3 mb-3">
                 <div class="col-md-6"><label>Nama Wali</label><input type="text" class="form-control" name="Nama Wali" id="edWaliNama"></div>
@@ -327,12 +360,59 @@
   </div>
 </div>
 
+<div id="printWrapper" style="display: none;">
+  <div style="text-align: center; border-bottom: 3px double #000; padding-bottom: 5px; margin-bottom: 10px; position: relative;">
+    <img src="https://masalistiqomah.sch.id/wp-content/uploads/2026/05/logo-e1492233052256.png" style="width: 50px; height: auto; position: absolute; left: 5px; top: 0px;">
+    <div style="font-weight: bold; font-size: 11pt; letter-spacing: 0.5px;">YAYASAN HUDAATUL UMAM</div>
+    <div style="font-weight: bold; font-size: 13pt; color: #1b4d3e; margin: 1px 0;">MADRASAH ALIYAH AL ISTIQOMAH</div>
+    <div style="font-weight: bold; font-size: 10pt; margin-bottom: 2px;">TAHUN PELAJARAN 2026/2027</div>
+    <div style="font-size: 8pt; font-style: italic; color: #444;">Jl. Kawasan No. 63 Pasi Awi Pasar Kemis Kab. Tangerang 15560 -Banten <br> Website: masalistiqomah.sch.id | Email: infomasalistiqomah@gmail.com</div>
+  </div>
+  
+  <h5 style="text-align: center; font-weight: bold; font-size: 11pt; text-decoration: underline; margin: 5px 0 10px 0;">FORMULIR BUKTI PENDAFTARAN SPMB MA AL ISTIQOMAH</h5>
+  
+  <div style="background:#f2f2f2; border:1px solid #aaa; padding:5px 10px; margin-bottom:10px; font-size:9.5pt;">
+    <table style="width:100%;">
+      <tr><td style="width:30%; font-weight:bold;">Nama Lengkap</td><td style="width:3%;">:</td><td id="pHeaderNama" style="font-weight:bold; text-transform:uppercase;">-</td></tr>
+      <tr><td style="font-weight:bold;">NISN</td><td>:</td><td id="pHeaderNisn" style="font-weight:bold;">-</td></tr>
+    </table>
+  </div>
+
+  <div class="print-group-header">A. BIODATA SISWA</div>
+  <table style="width:100%; border-collapse:collapse; font-size:9pt; margin-bottom:8px;" id="tableGroupA"></table>
+
+  <div class="print-group-header">B. DATA SEKOLAH ASAL</div>
+  <table style="width:100%; border-collapse:collapse; font-size:9pt; margin-bottom:8px;" id="tableGroupB"></table>
+
+  <div class="print-group-header">C. DATA ORANG TUA</div>
+  <table style="width:100%; border-collapse:collapse; font-size:9pt; margin-bottom:8px;" id="tableGroupC"></table>
+
+  <div id="containerGroupD" style="display:none;">
+    <div class="print-group-header">D. DATA WALI MURID</div>
+    <table style="width:100%; border-collapse:collapse; font-size:9pt; margin-bottom:8px;" id="tableGroupD"></table>
+  </div>
+  
+  <div style="margin-top: 20px; width: 100%; font-size: 9.5pt;">
+    <div style="float: left; width: 45%; text-align: center;">
+      Tanda Tangan Pendaftar<br><br><br><br>
+      ( <span id="pSignSiswa" style="font-weight:bold;">-</span> )
+    </div>
+    <div style="float: right; width: 45%; text-align: center;">
+      Tanda Tangan Orang Tua (Ayah)<br><br><br><br>
+      ( <span id="pSignAyah" style="font-weight:bold;">-</span> )
+    </div>
+    <div style="clear: both;"></div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
-  // URL Web App Google Apps Script Anda (Sesuai dengan deploy di code.gs)
-  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbziqoupvr2-N2SI5GNQ3XWodaYPX6Tc9xS6kjLrDSG0alZ23Glk5dT378R4Xev4ubxn/exec";
+  // ==========================================
+  // TEMPELKAN URL WEB APP GOOGLE SCRIPT DI SINI
+  // ==========================================
+  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbziqoupvr2-N2SI5GNQ3XWodaYPX6Tc9xS6kjLrDSG0alZ23Glk5dT378R4Xev4ubxn/exec";
 
   let listPendaftarAdmin = [];
   let currentSiswaData = {};
@@ -349,19 +429,13 @@
     reader.onerror = error => reject(error);
   });
 
-  function callBackend(payload, successCallback) {
-    fetch(WEB_APP_URL, {
-      method: "POST",
-      mode: "cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
-    })
-    .then(response => response.json())
-    .then(data => successCallback(data))
-    .catch(error => {
-      console.error("Error:", error);
-      alert("Terjadi kesalahan koneksi sistem eksternal.");
+  // Fungsi helper untuk menjembatani panggil API Google Apps Script
+  async function callGAS(action, payload) {
+    const response = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: action, data: payload })
     });
+    return await response.json();
   }
 
   async function handlePendaftaran(e) {
@@ -379,36 +453,30 @@
     if(kkInput) { fileKkBase64 = await getBase64(kkInput); fileKkName = kkInput.name; }
     if(ijzInput) { fileIjzBase64 = await getBase64(ijzInput); fileIjzName = ijzInput.name; }
 
-    callBackend({
-      action: "submit",
-      formData: formDataObj,
-      fileKkBase64: fileKkBase64,
-      fileKkName: fileKkName,
-      fileIjazahBase64: fileIjzBase64,
-      fileIjazahName: fileIjzName
-    }, (res) => {
+    try {
+      const res = await callGAS('submitPendaftaran', {
+        formDataObj, fileKkBase64, fileKkName, fileIjzBase64, fileIjzName
+      });
       alert(res.message);
-      btn.disabled = false; btn.innerText = "Kirim Pendaftaran";
       if(res.status === 'success') { form.reset(); showSection('login'); }
-    });
+    } catch (err) {
+      alert("Gagal terhubung ke server backend.");
+    } finally {
+      btn.disabled = false; btn.innerText = "Kirim Pendaftaran";
+    }
   }
 
-  function handleLogin(e) {
+  async function handleLogin(e) {
     e.preventDefault();
     const btn = document.getElementById('btnLogin');
     btn.disabled = true;
     const user = document.getElementById('logUser').value;
     const pass = document.getElementById('logPass').value;
 
-    callBackend({
-      action: "login",
-      username: user,
-      password: pass
-    }, (res) => {
-      btn.disabled = false;
+    try {
+      const res = await callGAS('loginUser', { user, pass });
       if(res.status === 'success') {
         document.getElementById('loginMenuLink').classList.add('d-none');
-        document.getElementById('registerMenuLink').classList.add('d-none');
         document.getElementById('logoutLink').classList.remove('d-none');
         if(res.role === 'admin') {
           showSection('dashAdmin');
@@ -419,23 +487,25 @@
           loadSiswaDashboard(res.data);
         }
       } else { alert(res.message); }
-    });
+    } catch (err) {
+      alert("Gagal melakukan login.");
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   function logout() {
     document.getElementById('loginMenuLink').classList.remove('d-none');
-    document.getElementById('registerMenuLink').classList.remove('d-none');
     document.getElementById('logoutLink').classList.add('d-none');
-    currentSiswaData = {};
-    listPendaftarAdmin = [];
     showSection('home');
   }
 
-  function loadAdminDashboard() {
+  async function loadAdminDashboard() {
     const tbody = document.getElementById('tablePendaftarBody');
     tbody.innerHTML = '<tr><td colspan="6" class="text-center p-3">Memuat...</td></tr>';
     
-    callBackend({ action: "getAll" }, (data) => {
+    try {
+      const data = await callGAS('getAllPendaftar', {});
       listPendaftarAdmin = data;
       tbody.innerHTML = '';
       if(!data || data.length === 0){
@@ -452,7 +522,7 @@
         let kkBtn = item['Link File KK'] ? `<a href="${item['Link File KK']}" target="_blank" class="btn btn-xs btn-outline-danger px-1 py-0" style="font-size:11px;">KK</a>` : '-';
         let ijzBtn = item['Link File Ijazah'] ? `<a href="${item['Link File Ijazah']}" target="_blank" class="btn btn-xs btn-outline-primary px-1 py-0" style="font-size:11px;">IJZ</a>` : '-';
         let tr = document.createElement('tr');
-        tr.innerHTML = `<td><b>${item['NISN']}</b></td><td>${item['Nama Lengkap']}</td><td>${item['Nama Sekolah Asal']}</td><td><span class="badge bg-secondary">${item['Status Asal']}</span></td><td>${kkBtn} ${ijzBtn}</td><td><button class="btn btn-sm btn-success py-0" onclick="printFormulirAdminByIndex(${index})">Cetak F5</button></td>`;
+        tr.innerHTML = `<td><b>${item['NISN']}</b></td><td>${item['Nama Lengkap']}</td><td>${item['Nama Sekolah Asal']}</td><td><span class="badge bg-secondary">${item['Status Asal']}</span></td><td>${kkBtn} ${ijzBtn}</td><td><button class="btn btn-sm btn-success py-0" onclick="printFormulirAdminByIndex(${index})">Cetak</button></td>`;
         tbody.appendChild(tr);
       });
       document.getElementById('statTotal').innerText = total;
@@ -460,7 +530,9 @@
       document.getElementById('statMts').innerText = mts;
       document.getElementById('statNegeri').innerText = negeri;
       document.getElementById('statSwasta').innerText = swasta;
-    });
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Gagal memuat data admin.</td></tr>';
+    }
   }
 
   function loadSiswaDashboard(data) {
@@ -480,20 +552,22 @@
     document.getElementById('edWaliNik').value = data['NIK Wali'] || '';
   }
 
-  function handleUpdateSiswa(e) {
+  async function handleUpdateSiswa(e) {
     e.preventDefault();
     const btn = document.getElementById('btnUpdateSiswa'); btn.disabled = true;
     const form = document.getElementById('formEditSiswa');
     const updateData = {};
     new FormData(form).forEach((value, key) => { updateData[key] = value; });
     
-    callBackend({
-      action: "update",
-      formData: updateData
-    }, (res) => {
-      btn.disabled = false; alert(res.message);
+    try {
+      const res = await callGAS('updatePendaftaran', updateData);
+      alert(res.message);
       if(res.status === 'success') { currentSiswaData = {...currentSiswaData, ...updateData}; loadSiswaDashboard(currentSiswaData); }
-    });
+    } catch(err) {
+      alert("Gagal mengubah data siswa.");
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   function downloadExcelDirect() {
@@ -503,36 +577,49 @@
     XLSX.writeFile(wb, "Data_Pendaftar_MA_Al_Istiqomah.xlsx");
   }
 
-  function printFormulirAdminByIndex(index) { 
-    const siswa = listPendaftarAdmin[index];
-    if(siswa && siswa['NISN']) {
-      executeServerPrint(siswa['NISN']);
-    }
-  }
+  function printFormulirAdminByIndex(index) { printFormulirAction(listPendaftarAdmin[index]); }
 
-  function printFormulirAction() {
-    if(currentSiswaData && currentSiswaData['NISN']) {
-      executeServerPrint(currentSiswaData['NISN']);
-    } else {
-      alert("Data NISN tidak ditemukan.");
-    }
-  }
+  function printFormulirAction(data) {
+    document.getElementById('pHeaderNama').innerText = data['Nama Lengkap'] || '-';
+    document.getElementById('pHeaderNisn').innerText = data['NISN'] || '-';
+    document.getElementById('pSignSiswa').innerText = data['Nama Lengkap'] || '...................';
+    document.getElementById('pSignAyah').innerText = data['Nama Ayah'] || '...................';
+    
+    const ga = document.getElementById('tableGroupA'); ga.innerHTML = '';
+    const gb = document.getElementById('tableGroupB'); gb.innerHTML = '';
+    const gc = document.getElementById('tableGroupC'); gc.innerHTML = '';
+    const gd = document.getElementById('tableGroupD'); gd.innerHTML = '';
+    const containerD = document.getElementById('containerGroupD');
 
-  // Menjalankan pencetakan dokumen F5 berbasis template resmi yang dikirim dari Google Apps Script
-  function executeServerPrint(nisn) {
-    callBackend({
-      action: "printF5",
-      nisn: nisn
-    }, (res) => {
-      if(res.status === 'success' && res.html) {
-        const printWindow = window.open('', '_blank', 'width=800,height=900');
-        printWindow.document.open();
-        printWindow.document.write(res.html);
-        printWindow.document.close();
-      } else {
-        alert("Gagal memuat dokumen cetak.");
+    const createRow = (k, v) => `<tr><td style="padding:2px 0; width:45%; font-weight:bold; border-bottom:1px dashed #ddd;">${k}</td><td style="width:3%;">:</td><td style="border-bottom:1px dashed #ddd;">${v || '-'}</td></tr>`;
+
+    const fieldsA = ['Nama Lengkap','Tempat Lahir','Tanggal Lahir','NIK','NISN','Pernah TK','Pernah PAUD','Hobi','Cita-cita','Alamat Lengkap'];
+    fieldsA.forEach(key => {
+      if (data[key] !== undefined) ga.innerHTML += createRow(key, data[key]);
+    });
+
+    const fieldsB = ['Jenjang Asal','Status Asal','Nama Sekolah Asal','NPSN Asal','Alamat Sekolah'];
+    fieldsB.forEach(key => {
+      if (data[key] !== undefined) gb.innerHTML += createRow(key, data[key]);
+    });
+
+    const fieldsC = ['No KK','Nama Kepala Keluarga','NIK Kepala Keluarga','Nama Ayah','NIK Ayah','Tempat Lahir Ayah','Tanggal Lahir Ayah','Status Ayah','Pendidikan Ayah','Pekerjaan Ayah','Penghasilan Ayah','Nama Ibu','NIK Ibu','Tempat Lahir Ibu','Tanggal Lahir Ibu','Status Ibu','Pendidikan Ibu','Pekerjaan Ibu','Penghasilan Ibu'];
+    fieldsC.forEach(key => {
+      if (data[key] !== undefined) gc.innerHTML += createRow(key, data[key]);
+    });
+
+    const fieldsD = ['Nama Wali', 'NIK Wali', 'Hubungan Keluarga', 'Pendidikan Wali', 'Pekerjaan Wali', 'Penghasilan Wali'];
+    let showWali = false;
+    fieldsD.forEach(key => {
+      if (data[key]) {
+        showWali = true;
+        gd.innerHTML += createRow(key, data[key]);
       }
     });
+
+    if (showWali) { containerD.style.display = 'block'; } else { containerD.style.display = 'none'; }
+
+    window.print();
   }
 </script>
 </body>
